@@ -1,102 +1,119 @@
-import time, csv, json, os
+import time, csv, os
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
-class KarrotCrawler:
-    def __init__(self):
-        options = uc.ChromeOptions()
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        self.driver = uc.Chrome(options=options)
-        self.wait = WebDriverWait(self.driver, 10)
-        
-    def process_category(self, category_name, category_url):
-        """카테고리별 처리"""
-        safe_name = category_name.replace("/", "_").replace("\\", "_")
-        fn = f"daangn_{safe_name}.csv"
-        
-        print(f"\n▶ [{category_name}] 크롤링 시작 → {fn}")
-        
-        try:
-            # 전체 URL 구성 (categories.json에는 path만 저장됨)
-            full_url = f"https://www.daangn.com{category_url}"
-            self.driver.get(full_url)
-            time.sleep(2)
-            
-            # 더보기 버튼 클릭 (최대 5회)
-            more_click_count = 0
-            while more_click_count < 5:
-                try:
-                    self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                    time.sleep(1)
-                    btn = self.wait.until(EC.element_to_be_clickable(
-                        (By.XPATH, "//button[contains(text(),'더보기')]")
-                    ))
-                    self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
-                    btn.click()
-                    more_click_count += 1
-                    print(f"     더보기 클릭 ({more_click_count}/5회)")
-                    time.sleep(1)
-                except:
-                    print(f"     더보기 버튼 없음 (총 {more_click_count}회 클릭)")
-                    break
-            
-            # 상품 카드 찾기
-            cards = self.driver.find_elements(By.CSS_SELECTOR, "a[data-gtm='search_article']")
-            print(f"   ▶ [{category_name}] {len(cards)}개 상품 발견")
-            
-            # CSV 파일에 저장
-            with open(fn, "w", newline="", encoding="utf-8-sig") as f:
-                writer = csv.writer(f)
-                writer.writerow(["카테고리","상품명","가격","작성일자","판매상태","URL"])
-                
-                for idx, card in enumerate(cards, 1):
-                    try:
-                        # 상품명
-                        name = card.find_element(By.CSS_SELECTOR, "span.lm809sh").text.strip()
-                        # 가격
-                        price = card.find_element(By.CSS_SELECTOR, "span.lm809si").text.strip()
-                        # 시간
-                        time_text = card.find_element(By.TAG_NAME, "time").text.strip()
-                        # 판매상태
-                        try:
-                            status = card.find_element(By.CSS_SELECTOR, "span.mlbp660").text.strip()
-                        except NoSuchElementException:
-                            status = "판매중"
-                        
-                        # CSV에 쓰기
-                        writer.writerow([
-                            category_name, name, price, time_text, status, 
-                            card.get_attribute("href")
-                        ])
-                        f.flush()
-                        print(f"     {idx}/{len(cards)} [{status}] {name}")
-                        
-                    except Exception as e:
-                        print(f"     ⚠️ {idx}번째 상품 처리 실패: {str(e)}")
-                        continue
-            
-            print(f"✅ [{category_name}] CSV 생성됨 → {os.path.abspath(fn)}")
-            
-        except Exception as e:
-            print(f"⚠️ [{category_name}] 카테고리 처리 중 오류: {str(e)}")
+# ─── 1) 드라이버 세팅 ─────────────────────────────────────────
+options = uc.ChromeOptions()
+options.add_argument('--no-sandbox')
+options.add_argument('--disable-dev-shm-usage')
+driver = uc.Chrome(options=options)
+wait = WebDriverWait(driver, 15)  # Increased timeout to 15 seconds
 
-    def close(self):
-        self.driver.quit()
-
-def main():
-    with open("categories.json", "r", encoding="utf-8") as f:
-        categories = json.load(f)
-    crawler = KarrotCrawler()
+def safe_get_text(selector, timeout=5):
+    """안전하게 텍스트 추출 (타임아웃 처리)"""
     try:
-        for cat in categories:
-            crawler.process_category(cat["name"], cat["url"])
-    finally:
-        crawler.close()
-        print("\n🎉 카테고리 순회 + 크롤링 완료!")
+        element = WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, selector))
+        )
+        return element.text.strip()
+    except:
+        return "N/A"
 
-if __name__ == "__main__":
-    main() 
+# ─── 2) "역삼동" 페이지 열고 카테고리만 추출 ────────────────────
+try:
+    driver.get("https://www.daangn.com/kr/buy-sell/?category_id=1&in=역삼동-6035")
+    time.sleep(2)
+
+    # 카테고리 섹션 찾기
+    category_section = wait.until(
+        EC.presence_of_element_located((By.XPATH, "//h3[text()='카테고리']/following-sibling::div"))
+    )
+    
+    # 카테고리 링크 추출
+    cats = category_section.find_elements(By.CSS_SELECTOR, 'a[data-gtm="search_filter"]')
+    categories = []
+    
+    for a in cats:
+        try:
+            name = a.find_element(By.TAG_NAME, "span").text.strip()
+            href = a.get_attribute("href")
+            if name and href and "category_id" in href:  # 실제 카테고리만 필터링
+                categories.append((name, href))
+        except:
+            continue
+
+    print("▶ 카테고리 인식:", [c[0] for c in categories])
+
+    # ─── 3) 카테고리별 순회 ─────────────────────────────────
+    for cat_name, cat_url in categories:
+        safe = cat_name.replace("/", "_").replace("\\", "_")
+        fn = f"daangn_역삼동_{safe}.csv"
+        print(f"\n▶ [{cat_name}] 크롤링 시작 → {fn}")
+
+        with open(fn, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.writer(f)
+            writer.writerow(["카테고리", "상품명", "가격", "작성일자", "판매상태", "URL"])
+            f.flush()
+
+            try:
+                driver.get(cat_url)
+                time.sleep(2)
+
+                # (2) 스크롤 + 더보기 (버튼이 없을 때까지)
+                more_click_count = 0
+                while True:
+                    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                    time.sleep(1)
+                    try:
+                        btn = wait.until(EC.element_to_be_clickable(
+                            (By.XPATH, "//button[contains(text(),'더보기')]")
+                        ))
+                        driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
+                        btn.click()
+                        more_click_count += 1
+                        print(f"     더보기 클릭 ({more_click_count}회)")
+                        time.sleep(1)
+                    except:
+                        print(f"     더보기 버튼 없음 (총 {more_click_count}회 클릭)")
+                        break
+
+                # (3) 모든 상품 링크 수집
+                cards = driver.find_elements(By.CSS_SELECTOR, 'a[data-gtm="search_article"]')
+                print(f"   ▶ [{cat_name}] {len(cards)}개 상품 발견")
+                for idx, card in enumerate(cards, 1):
+                    # 상품명
+                    name  = card.find_element(By.CSS_SELECTOR, 'span.lm809sh').text.strip()
+                    # 가격
+                    price = card.find_element(By.CSS_SELECTOR, 'span.lm809si').text.strip()
+                    # 작성 시간 (time 태그)
+                    time_text = card.find_element(By.TAG_NAME, 'time').text.strip()
+                    # 판매완료 여부: "판매완료" 또는 "예약중" span이 있으면 그 텍스트, 없으면 "판매중"
+                    try:
+                        status = card.find_element(By.CSS_SELECTOR, 'span.mlbp660').text.strip()
+                    except NoSuchElementException:
+                        status = "판매중"
+
+                    # CSV에 쓰기
+                    writer.writerow([cat_name, name, price, time_text, status, card.get_attribute('href')])
+                    f.flush()
+                    print(f"     {idx}/{len(cards)} [{status}] {name}")
+
+                print(f"✅ [{cat_name}] CSV 생성됨 → {os.path.abspath(fn)}")
+
+            except Exception as e:
+                print(f"⚠️ [{cat_name}] 카테고리 처리 중 오류: {str(e)}")
+                continue
+
+except Exception as e:
+    print(f"⚠️ 전체 스크립트 실행 중 오류: {str(e)}")
+
+finally:
+    driver.quit()
+    print("\n🎉 카테고리 순회 + 크롤링 완료!")
+
+regions = [
+    ("역삼동", "https://www.daangn.com/kr/buy-sell/?category_id=1&in=역삼동-6035"),
+] 
