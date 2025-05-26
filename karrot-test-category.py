@@ -1,112 +1,81 @@
-import csv
-import os
-import logging
+import time, csv, os
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException
 
-# ─── 설정 ─────────────────────────────────────────────────────────────
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s",
-    datefmt="%H:%M:%S"
-)
+# ─── 1) 드라이버 세팅 ─────────────────────────────────────────
+driver = uc.Chrome()
+wait   = WebDriverWait(driver, 10)
 
-options = uc.ChromeOptions()
-options.add_argument('--no-sandbox')
-options.add_argument('--disable-dev-shm-usage')
-options.add_argument('--disable-gpu')
-driver = uc.Chrome(options=options)
-wait = WebDriverWait(driver, 10)
-
-# ─── 1) “송도동” 페이지 열고 카테고리 링크 수집 ──────────────────────────
+# ─── 2) “송도동” 페이지 열고 카테고리만 추출 ────────────────────
 driver.get("https://www.daangn.com/kr/buy-sell/?in=송도동-6543")
-# 카테고리 링크가 로드될 때까지 대기
-wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'a[data-gtm="search_filter"]')))
-cats = driver.find_elements(By.CSS_SELECTOR, 'a[data-gtm="search_filter"]')
+time.sleep(2)
 
-categories = []
-for a in cats:
-    spans = a.find_elements(By.TAG_NAME, "span")   # 없으면 []
-    if not spans:
-        continue
-    name = spans[0].text.strip()
-    href = a.get_attribute("href")
-    categories.append((name, href))
+cats = driver.find_elements(
+    By.XPATH,
+    "//h3[text()='카테고리']/following-sibling::div//a[@data-gtm='search_filter']"
+)
+categories = [(a.find_element(By.TAG_NAME,"span").text.strip(),
+               a.get_attribute("href")) for a in cats]
+print("▶ 카테고리 인식:", [c[0] for c in categories])
 
-logging.info(f"Found categories: {[n for n, _ in categories]}")
-
-# ─── 2) 각 카테고리별 크롤링 & CSV 저장 ─────────────────────────────────
+# ─── 3) 카테고리별 테스트 순회 ─────────────────────────────────
 for cat_name, cat_url in categories:
-    safe_name = cat_name.replace("/", "_")
-    filename = f"daangn_송도동_{safe_name}.csv"
-    logging.info(f"Starting category: {cat_name}")
+    safe = cat_name.replace("/", "_")
+    fn   = f"daangn_송도동_{safe}.csv"
+    print(f"\n▶ [{cat_name}] 테스트 시작 → {fn}")
 
-    with open(filename, "w", newline="", encoding="utf-8-sig") as f:
+    with open(fn, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
-        writer.writerow(["동네", "카테고리", "상품명", "가격", "닉네임", "작성일자", "URL"])
+        writer.writerow(["카테고리","상품명","가격","닉네임","작성일자","URL"])
+        f.flush()
 
-        # 카테고리 페이지 열기
         driver.get(cat_url)
-        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+        time.sleep(2)
 
-        # 테스트용: 스크롤 + '더보기' 클릭 1회
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        try:
-            btn = wait.until(EC.element_to_be_clickable(
-                (By.XPATH, "//button[contains(text(),'더보기')]")
-            ))
-            driver.execute_script("arguments[0].click();", btn)
-            wait.until(EC.staleness_of(btn))
-        except TimeoutException:
-            logging.info("더보기 버튼 없음 혹은 클릭 불가")
+        # (2) 스크롤 + 더보기 (최대 5회)
+        for _ in range(5):
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(1)
+            try:
+                btn = wait.until(EC.element_to_be_clickable(
+                    (By.XPATH, "//button[contains(text(),'더보기')]")
+                ))
+                btn.click()
+                time.sleep(1)
+            except:
+                break
 
-        # 상품 링크 수집 (테스트용: 최대 5개)
+        # (3) 최대 5개 상품 링크만
         anchors = driver.find_elements(By.CSS_SELECTOR, 'a[data-gtm="search_article"]')
-        item_urls = []
+        urls = []
         for a in anchors:
             href = a.get_attribute("href")
-            if href and "/kr/buy-sell/" in href and href not in item_urls:
-                item_urls.append(href)
-            if len(item_urls) >= 5:
+            if href and "/kr/buy-sell/" in href and href not in urls:
+                urls.append(href)
+            if len(urls) >= 5:
                 break
-        logging.info(f"▶ 테스트용으로 5개만 가져옵니다: {len(item_urls)}개")
+        print(f"   ▶ [{cat_name}] 5개 링크 수집 완료")
 
-        # 상세 페이지 순회 & 중간 저장
-        for idx, url in enumerate(item_urls, start=1):
+        # (4) 상세 크롤링 + 즉시 저장
+        for idx, url in enumerate(urls, 1):
             driver.get(url)
-            wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+            time.sleep(1)
+            def get_text(sel):
+                try:    return driver.find_element(By.CSS_SELECTOR, sel).text
+                except: return "N/A"
 
-            try:
-                title = driver.find_element(
-                    By.CSS_SELECTOR,
-                    "h1.sprinkles_display_inline_base__1byufe82a"
-                ).text
-            except:
-                title = "N/A"
-            try:
-                price = driver.find_element(
-                    By.CSS_SELECTOR,
-                    "h3.jy3q4ib.sprinkles_fontWeight_bold__1byufe81z"
-                ).text
-            except:
-                price = "N/A"
-            try:
-                nickname = driver.find_element(By.CSS_SELECTOR, "span._1mr23zje").text
-            except:
-                nickname = "N/A"
-            try:
-                date = driver.find_element(By.TAG_NAME, "time").text
-            except:
-                date = "N/A"
+            title    = get_text("h1.sprinkles_display_inline_base__1byufe82a")
+            price    = get_text("h3.jy3q4ib.sprinkles_fontWeight_bold__1byufe81z")
+            nickname = get_text("span._1mr23zje")
+            date     = get_text("time")
 
-            writer.writerow(["송도동", cat_name, title, price, nickname, date, url])
+            writer.writerow([cat_name, title, price, nickname, date, url])
             f.flush()
-            logging.info(f"  {idx}/{len(item_urls)}: {title}")
+            print(f"     {idx}/5 크롤링: {title}")
 
-    logging.info(f"✅ {cat_name} 완료 → {os.path.abspath(filename)}")
+    print(f"✅ [{cat_name}] 테스트 CSV 생성됨 → {os.path.abspath(fn)}")
 
 driver.quit()
-logging.info("🎉 모든 카테고리 크롤링 완료!")
+print("\n🎉 카테고리 순회 + 5개 테스트 완료!")
