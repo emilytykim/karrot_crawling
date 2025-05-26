@@ -47,11 +47,11 @@ try:
 
     print("▶ 카테고리 인식:", [c[0] for c in categories])
 
-    # ─── 3) 카테고리별 테스트 순회 ─────────────────────────────────
+    # ─── 3) 카테고리별 순회 ─────────────────────────────────
     for cat_name, cat_url in categories:
         safe = cat_name.replace("/", "_").replace("\\", "_")
         fn = f"daangn_송도동_{safe}.csv"
-        print(f"\n▶ [{cat_name}] 테스트 시작 → {fn}")
+        print(f"\n▶ [{cat_name}] 크롤링 시작 → {fn}")
 
         with open(fn, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
@@ -62,8 +62,9 @@ try:
                 driver.get(cat_url)
                 time.sleep(2)
 
-                # (2) 스크롤 + 더보기 (최대 5회)
-                for _ in range(5):
+                # (2) 스크롤 + 더보기 (버튼이 없을 때까지)
+                more_click_count = 0
+                while True:
                     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
                     time.sleep(1)
                     try:
@@ -72,11 +73,14 @@ try:
                         ))
                         driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
                         btn.click()
+                        more_click_count += 1
+                        print(f"     더보기 클릭 ({more_click_count}회)")
                         time.sleep(1)
                     except:
+                        print(f"     더보기 버튼 없음 (총 {more_click_count}회 클릭)")
                         break
 
-                # (3) 최대 5개 상품 링크만
+                # (3) 모든 상품 링크 수집
                 anchors = driver.find_elements(By.CSS_SELECTOR, 'a[data-gtm="search_article"]')
                 urls = []
                 for a in anchors:
@@ -84,8 +88,6 @@ try:
                         href = a.get_attribute("href")
                         if href and "/kr/buy-sell/" in href and href not in urls:
                             urls.append(href)
-                        if len(urls) >= 5:
-                            break
                     except:
                         continue
 
@@ -110,7 +112,7 @@ try:
                         print(f"     ⚠️ {idx}번째 상품 크롤링 실패: {str(e)}")
                         continue
 
-                print(f"✅ [{cat_name}] 테스트 CSV 생성됨 → {os.path.abspath(fn)}")
+                print(f"✅ [{cat_name}] CSV 생성됨 → {os.path.abspath(fn)}")
 
             except Exception as e:
                 print(f"⚠️ [{cat_name}] 카테고리 처리 중 오류: {str(e)}")
@@ -121,4 +123,4 @@ except Exception as e:
 
 finally:
     driver.quit()
-    print("\n🎉 카테고리 순회 + 테스트 완료!")
+    print("\n🎉 카테고리 순회 + 크롤링 완료!") 
