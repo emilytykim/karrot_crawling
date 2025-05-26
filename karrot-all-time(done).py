@@ -9,7 +9,7 @@ import re
 
 # ─── 서울시 구 리스트 ───────────────────────────────
 SEOUL_DISTRICTS = [
-    "강동구", "강북구", "강서구", "관악구", "광진구", "구로구", "금천구",
+    "강남구", "강동구", "강북구", "강서구", "관악구", "광진구", "구로구", "금천구",
     "노원구", "도봉구", "동대문구", "동작구", "마포구", "서대문구", "서초구", "성동구",
     "성북구", "송파구", "양천구", "영등포구", "용산구", "은평구", "종로구", "중구", "중랑구"
 ]
@@ -52,29 +52,24 @@ class KarrotCrawler:
         return False
 
     def get_district_dongs(self, district):
+        """구 이름으로 동네 정보 수집"""
         print(f"\n▶ [{district}] 동네 정보 수집 시작")
-        # 1. 역삼동에서 시작
-        if not self.safe_get("https://www.daangn.com/kr/buy-sell/?in=역삼동-6035"):
-            print(f"⚠️ [{district}] 역삼동 진입 실패")
+        
+        # 홈페이지로 이동
+        if not self.safe_get("https://www.daangn.com/kr/"):
+            print(f"⚠️ [{district}] 홈페이지 로드 실패")
             return []
 
         try:
-            # 2. '역삼동' 버튼 클릭 (지역변경 창 오픈)
-            region_btn = self.wait.until(
-                EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'역삼동')]"))
-            )
-            region_btn.click()
-            time.sleep(1)
-
-            # 3. 지역변경 창에서 검색창에 구 이름 입력
+            # 검색창 찾기
             search_input = self.wait.until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, 'input[type="search"]'))
             )
             search_input.clear()
             search_input.send_keys(district)
-            time.sleep(1)
+            time.sleep(1)  # 자동완성 대기
 
-            # 4. 자동완성 리스트의 첫 번째 동 클릭
+            # 자동완성 리스트의 첫 번째 항목 클릭
             first_item = self.wait.until(
                 EC.element_to_be_clickable((By.CSS_SELECTOR, 'ul li a'))
             )
