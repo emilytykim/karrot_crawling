@@ -8,7 +8,7 @@ import urllib.parse
 import re
 
 # ─── 캐시된 JSON 읽기 ───────────────────────────────
-with open("regions_gangnam.json","r",encoding="utf-8") as f:
+with open("regions_gangnam_remaining.json","r",encoding="utf-8") as f:
     regions = json.load(f)
 with open("categories.json","r",encoding="utf-8") as f:
     categories = json.load(f)
@@ -56,7 +56,7 @@ class KarrotCrawler:
             try:
                 # (2) 스크롤 + 더보기 (버튼이 없을 때까지)
                 more_click_count = 0
-                while True:
+                while more_click_count < 5:  # 최대 5회로 제한
                     self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
                     time.sleep(1)
                     try:
@@ -66,7 +66,7 @@ class KarrotCrawler:
                         self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", btn)
                         btn.click()
                         more_click_count += 1
-                        print(f"     더보기 클릭 ({more_click_count}회)")
+                        print(f"     더보기 클릭 ({more_click_count}/5)")
                         time.sleep(1)
                     except:
                         print(f"     더보기 버튼 없음 (총 {more_click_count}회 클릭)")
