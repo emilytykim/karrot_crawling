@@ -64,8 +64,10 @@ class KarrotCrawler:
                 # 쿠키 및 캐시 삭제
                 self.driver.delete_all_cookies()
                 
-                # 역삼동 페이지로 직접 이동
-                self.driver.get("https://www.daangn.com/kr/buy-sell/?in=행운동-344")
+                # regions_gangnam_remaining.json의 첫 번째 동네(세곡동)로 시작
+                first_region = regions[0]
+                start_url = first_region['url']  # URL이 이미 전체 경로를 포함하고 있음
+                self.driver.get(start_url)
                 time.sleep(5)
                 
                 # 페이지가 제대로 로드되었는지 확인
@@ -73,10 +75,10 @@ class KarrotCrawler:
                     self.wait.until(
                         EC.presence_of_element_located((By.CSS_SELECTOR, 'button[data-gtm="gnb_location"]'))
                     )
-                    print("✅ 행운동 페이지 로드 성공")
+                    print(f"✅ {first_region['name']} 페이지 로드 성공")
                     return
                 except:
-                    print("⚠️ 행운동 페이지 로드 실패, 재시도...")
+                    print(f"⚠️ {first_region['name']} 페이지 로드 실패, 재시도...")
                     continue
                     
             except Exception as e:
@@ -117,18 +119,20 @@ class KarrotCrawler:
         """한 동네에서 한 카테고리 크롤링"""
         cat_name = cat["name"].replace("/", "-")  # 슬래시를 하이픈으로 변경
         region_name = region["name"]
+        
         # region["url"]에서 in=... 부분만 추출 (한글)
         m = re.search(r"in=([^&]+)", region["url"])
         if m:
             region_in = m.group(1)
         else:
             region_in = ""
+            
         # cat["url"]에서 category_id 추출
         m2 = re.search(r"category_id=(\d+)", cat["url"])
         cat_id = m2.group(1) if m2 else "1"
-        # in=... 부분만 region의 한글로 교체 (인코딩해서)
-        cat_url = re.sub(r"in=[^&]+", f"in={urllib.parse.quote(region_in)}", cat["url"])
-        full_url = "https://www.daangn.com" + cat_url
+        
+        # 새로운 URL 형식으로 조합
+        full_url = f"https://www.daangn.com/kr/buy-sell/?category_id={cat_id}&in={urllib.parse.quote(region_in)}"
         print(f"\n▶ [{region_name}][{cat['name']}] 크롤링 시작")
         
         # 안전하게 페이지 로드
