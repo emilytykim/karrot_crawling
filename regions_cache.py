@@ -15,7 +15,7 @@ driver = uc.Chrome(options=opts)
 wait   = WebDriverWait(driver, 10)
 
 # ─── 1) 시작 페이지 열기 ─────────────────────────────────
-BASE_URL = "https://www.daangn.com/kr/buy-sell/?category_id=1&in=역삼동-6035"
+BASE_URL = "https://www.daangn.com/kr/buy-sell/?category_id=1&in=명지동-5873"
 driver.get(BASE_URL)
 time.sleep(2)
 
@@ -50,8 +50,8 @@ for a in links:
     regions.append({"name": name, "url": path})
 
 # ─── 4) JSON 에 저장 ────────────────────────────────────
-with open("regions_gangnam.json", "w", encoding="utf-8") as f:
+with open("regions_bu_gangseo.json", "w", encoding="utf-8") as f:
     json.dump(regions, f, ensure_ascii=False, indent=2)
 
-print(f"✅ {len(regions)}개 동네 저장됨 → regions_gangnam.json")
+print(f"✅ {len(regions)}개 동네 저장됨 → regions_bu_gangseo.json")
 driver.quit()

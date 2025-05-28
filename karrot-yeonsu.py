@@ -13,13 +13,16 @@ from datetime import datetime
 # ─── 캐시된 JSON 읽기 ───────────────────────────────
 # with open("regions_gangnam.json","r",encoding="utf-8") as f:
 #     regions = json.load(f)
-with open("regions_kyeyang.json","r",encoding="utf-8") as f:
+with open("regions_songdo.json","r",encoding="utf-8") as f:
     regions = json.load(f)
+    # 구 이름 추출 (파일명에서)
+    DISTRICT_NAME = "regions_songdo.json".split("_")[1].split(".")[0].capitalize()
+
 with open("categories.json","r",encoding="utf-8") as f:
     categories = json.load(f)
 
 # 처리된 동네 기록을 위한 파일
-PROGRESS_FILE = "crawling_progress.json"
+PROGRESS_FILE = "crawling_progress_ys.json"
 
 def load_progress():
     """이전에 처리된 동네 목록을 로드"""
@@ -168,10 +171,12 @@ class KarrotCrawler:
             print(f"⚠️ 프로세스 {self.process_id}: [{region_name}][{cat['name']}] 페이지 로드 실패, 다음으로 넘어갑니다.")
             return
 
-        # 동네별 폴더 생성
-        os.makedirs(region_name, exist_ok=True)
+        # 구 폴더 생성
+        os.makedirs(DISTRICT_NAME, exist_ok=True)
+        # 동네별 폴더 생성 (구 폴더 안에)
+        os.makedirs(os.path.join(DISTRICT_NAME, region_name), exist_ok=True)
         fn = f"daangn_{region_name}_{cat_name}.csv"
-        with open(os.path.join(region_name, fn), "w", newline="", encoding="utf-8-sig") as f:
+        with open(os.path.join(DISTRICT_NAME, region_name, fn), "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f)
             w.writerow(["카테고리","상품명","가격","작성일자","판매상태","URL"])
             f.flush()
