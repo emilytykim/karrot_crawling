@@ -1,2 +1,1 @@
-karrot-dong-cat.py  : 병렬화 아님 nxn
-karrot-four.py : 4개 병렬화
+enhanced the speed of web crawling from 1H 30m to 10 minutes to extract approximately 190,000 data
