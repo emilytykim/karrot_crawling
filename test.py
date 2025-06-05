@@ -1,3 +1,5 @@
+# README
+# Test to enhance the speed of web crawling - reviewed network console and tried http & API -> worked!
 import os, json, csv, urllib.parse, requests
 from datetime import datetime
 
@@ -9,17 +11,20 @@ with open("categories.json", "r", encoding="utf-8") as f:
 DISTRICT_NAME = "Gwangmyeong"
 PROGRESS_FILE = "crawling_progress/crawling_progress_gwangmyeong_http.json"
 
+
 def load_progress():
     if os.path.exists(PROGRESS_FILE):
-        with open(PROGRESS_FILE, 'r', encoding='utf-8') as f:
+        with open(PROGRESS_FILE, "r", encoding="utf-8") as f:
             return set(json.load(f))
     return set()
+
 
 def save_progress(region_name):
     processed = load_progress()
     processed.add(region_name)
-    with open(PROGRESS_FILE, 'w', encoding='utf-8') as f:
+    with open(PROGRESS_FILE, "w", encoding="utf-8") as f:
         json.dump(list(processed), f, ensure_ascii=False, indent=2)
+
 
 HEADERS = {
     "Accept": "application/json",
@@ -29,6 +34,7 @@ HEADERS = {
         "Chrome/120.0.0.0 Safari/537.36"
     ),
 }
+
 
 def fetch_json(region_in, category_id):
     url = (
@@ -41,6 +47,7 @@ def fetch_json(region_in, category_id):
     resp = requests.get(url, headers=HEADERS, timeout=10, verify=False)
     resp.raise_for_status()
     return resp.json()
+
 
 if __name__ == "__main__":
     os.makedirs(DISTRICT_NAME, exist_ok=True)
@@ -68,7 +75,9 @@ if __name__ == "__main__":
             qs2 = urllib.parse.parse_qs(urllib.parse.urlparse(cat["url"]).query)
             category_id = qs2.get("category_id", [""])[0] or "1"
 
-            print(f"▶ [{region_name}][{cat_name}] JSON 호출 (category_id={category_id})")
+            print(
+                f"▶ [{region_name}][{cat_name}] JSON 호출 (category_id={category_id})"
+            )
             try:
                 data = fetch_json(region_in, category_id)
             except Exception as e:
@@ -83,25 +92,27 @@ if __name__ == "__main__":
                 continue
 
             csv_path = os.path.join(
-                DISTRICT_NAME,
-                region_name,
-                f"daangn_{region_name}_{cat_name}.csv"
+                DISTRICT_NAME, region_name, f"daangn_{region_name}_{cat_name}.csv"
             )
             with open(csv_path, "w", newline="", encoding="utf-8-sig") as f:
                 writer = csv.writer(f)
-                writer.writerow(["카테고리", "상품명", "가격", "작성일자", "판매상태", "URL"])
+                writer.writerow(
+                    ["카테고리", "상품명", "가격", "작성일자", "판매상태", "URL"]
+                )
                 f.flush()
 
                 for idx, item in enumerate(articles, 1):
                     try:
-                        title      = item.get("title", "").strip()
-                        price      = item.get("price") or item.get("priceText", "")
+                        title = item.get("title", "").strip()
+                        price = item.get("price") or item.get("priceText", "")
                         created_at = item.get("createdAt", "")
-                        sold_out   = item.get("isSoldOut", False)
-                        status     = "판매완료" if sold_out else "판매중"
+                        sold_out = item.get("isSoldOut", False)
+                        status = "판매완료" if sold_out else "판매중"
                         detail_url = f"https://www.daangn.com/articles/{item.get('id')}"
 
-                        writer.writerow([cat_name, title, price, created_at, status, detail_url])
+                        writer.writerow(
+                            [cat_name, title, price, created_at, status, detail_url]
+                        )
                         f.flush()
                         print(f"     {idx}/{len(articles)} [{status}] {title}")
                     except Exception as e:
@@ -110,6 +121,8 @@ if __name__ == "__main__":
             print(f"   ✅ CSV 저장 완료 → {csv_path}")
 
         save_progress(region_name)
-        print(f"✅ [{region_name}] JSON 크롤링 완료 – {datetime.now():%Y-%m-%d %H:%M:%S}")
+        print(
+            f"✅ [{region_name}] JSON 크롤링 완료 – {datetime.now():%Y-%m-%d %H:%M:%S}"
+        )
 
     print("\n🎉 모든 동×카테고리 HTTP 크롤링 완료 (광명시)")
