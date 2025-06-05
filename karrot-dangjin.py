@@ -13,16 +13,16 @@ from datetime import datetime
 # ─── 캐시된 JSON 읽기 ───────────────────────────────
 # with open("regions_gangnam.json","r",encoding="utf-8") as f:
 #     regions = json.load(f)
-with open("regions_songdo.json","r",encoding="utf-8") as f:
+with open("regions/regions_dangjin.json","r",encoding="utf-8") as f:
     regions = json.load(f)
     # 구 이름 추출 (파일명에서)
-    DISTRICT_NAME = "regions_songdo.json".split("_")[1].split(".")[0].capitalize()
+    DISTRICT_NAME = "regions_dangjin.json".split("_")[1].split(".")[0].capitalize()
 
 with open("categories.json","r",encoding="utf-8") as f:
     categories = json.load(f)
 
 # 처리된 동네 기록을 위한 파일
-PROGRESS_FILE = "crawling_progress_ys.json"
+PROGRESS_FILE = "crawling_progress/crawling_progress_dangjin.json"
 
 def load_progress():
     """이전에 처리된 동네 목록을 로드"""
